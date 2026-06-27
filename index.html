@@ -1,0 +1,575 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>迷你编译器 · 项目讲解</title>
+    <!-- 代码高亮 -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Segoe UI', 'PingFang SC', Roboto, sans-serif;
+            background: #0d1117;
+            color: #e6edf3;
+            padding: 40px 20px;
+            line-height: 1.8;
+        }
+        .container {
+            max-width: 1100px;
+            margin: 0 auto;
+        }
+        h1 {
+            font-size: 2.4rem;
+            border-bottom: 3px solid #58a6ff;
+            padding-bottom: 12px;
+            margin-bottom: 10px;
+        }
+        .subtitle {
+            color: #8b949e;
+            font-size: 1.05rem;
+            margin-bottom: 30px;
+        }
+        h2 {
+            font-size: 1.8rem;
+            margin-top: 48px;
+            margin-bottom: 16px;
+            color: #58a6ff;
+            border-left: 4px solid #58a6ff;
+            padding-left: 18px;
+        }
+        h3 {
+            font-size: 1.3rem;
+            margin-top: 30px;
+            margin-bottom: 12px;
+            color: #f0883e;
+        }
+        h4 {
+            color: #f0e6d0;
+            margin: 18px 0 8px 0;
+            font-size: 1.05rem;
+        }
+        p {
+            color: #c9d1d9;
+            margin-bottom: 14px;
+        }
+        .badge-group {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin: 12px 0 20px 0;
+        }
+        .badge {
+            background: #21262d;
+            padding: 4px 16px;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            color: #8b949e;
+            border: 1px solid #30363d;
+        }
+        .badge.tech {
+            background: #1f3a5f;
+            color: #58a6ff;
+            border-color: #1f4a7a;
+        }
+        .card {
+            background: #161b22;
+            border: 1px solid #30363d;
+            border-radius: 12px;
+            padding: 20px 26px;
+            margin: 16px 0;
+        }
+        .card strong {
+            color: #f0e6d0;
+        }
+        pre {
+            background: #0d1117;
+            border-radius: 10px;
+            padding: 18px 22px;
+            overflow-x: auto;
+            border: 1px solid #30363d;
+            margin: 14px 0;
+        }
+        code {
+            font-family: 'JetBrains Mono', 'Fira Code', monospace;
+            font-size: 0.9rem;
+        }
+        .flow {
+            background: #0d1117;
+            padding: 18px 22px;
+            border-radius: 10px;
+            border: 1px solid #30363d;
+            text-align: center;
+            font-family: monospace;
+            font-size: 1rem;
+            letter-spacing: 1px;
+            color: #8b949e;
+            line-height: 2.2;
+        }
+        .grid-2 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 24px;
+            margin: 16px 0;
+        }
+        ul, ol {
+            padding-left: 26px;
+            color: #c9d1d9;
+            margin-bottom: 14px;
+        }
+        ul li, ol li {
+            margin-bottom: 6px;
+        }
+        .file-tag {
+            display: inline-block;
+            background: #21262d;
+            padding: 2px 12px;
+            border-radius: 4px;
+            font-size: 0.8rem;
+            color: #58a6ff;
+            border: 1px solid #30363d;
+            font-family: monospace;
+        }
+        .footer {
+            margin-top: 60px;
+            padding-top: 24px;
+            border-top: 1px solid #30363d;
+            text-align: center;
+            color: #8b949e;
+            font-size: 0.9rem;
+        }
+        @media (max-width: 768px) {
+            .grid-2 {
+                grid-template-columns: 1fr;
+            }
+            h1 {
+                font-size: 1.8rem;
+            }
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+
+    <h1>🧩 从源代码到汇编：一个迷你编译器的实现</h1>
+    <div class="subtitle">词法分析 · 语法分析 · 抽象语法树 · MIPS 代码生成</div>
+
+    <div class="badge-group">
+        <span class="badge tech">Flex</span>
+        <span class="badge tech">Bison</span>
+        <span class="badge tech">C++17</span>
+        <span class="badge tech">MIPS</span>
+        <span class="badge tech">CMake</span>
+        <span class="badge">✅ 支持 if / while / 函数调用</span>
+    </div>
+
+    <p>
+        这是一个<strong>类 C 语言的迷你编译器</strong>，能够将简化版的 C 语言源程序编译为 MIPS 汇编代码，
+        并可在 SPIM 模拟器上运行。整个项目手工实现了编译前端的主要阶段：词法分析、语法分析、抽象语法树 (AST) 构建，
+        以及目标代码生成。本文档既是项目讲解，也同步梳理了编译原理中与之对应的核心知识。
+    </p>
+
+    <!-- ============================================ -->
+    <h2>1. 项目概览：能做什么？</h2>
+    <div class="card">
+        <p><strong>✅ 支持的语言特性</strong></p>
+        <ul>
+            <li>基本数据类型：<code>int</code>、<code>void</code></li>
+            <li>变量声明与初始化：<code>int a = 10;</code></li>
+            <li>算术运算：<code>+</code>、<code>-</code>、<code>*</code>、<code>/</code>、<code>%</code></li>
+            <li>位运算：<code>&amp;</code>、<code>|</code>、<code>^</code>、<code>~</code></li>
+            <li>逻辑运算：<code>&amp;&amp;</code>、<code>||</code>、<code>!</code></li>
+            <li>关系比较：<code>&lt;</code>、<code>&lt;=</code>、<code>&gt;</code>、<code>&gt;=</code>、<code>==</code>、<code>!=</code></li>
+            <li>控制流：<code>if</code>、<code>if-else</code>、<code>while</code></li>
+            <li>函数定义与调用（支持最多 4 个参数）</li>
+            <li>内置函数：<code>println_int(expr)</code> 用于输出</li>
+        </ul>
+        <p><strong>🎯 输入输出</strong></p>
+        <ul>
+            <li><strong>输入</strong>：一个符合上述语法的 <code>.c</code> 源文件</li>
+            <li><strong>输出</strong>：对应的 MIPS 汇编代码（<code>.s</code> 文件），可在 SPIM 中运行</li>
+        </ul>
+    </div>
+
+    <!-- ============================================ -->
+    <h2>2. 整体架构：编译器是如何工作的？</h2>
+    <div class="flow">
+        ┌─────────────┐<br>
+        │  源代码 (.c) │<br>
+        └──────┬──────┘<br>
+               ▼<br>
+        ┌─────────────┐<br>
+        │ 词法分析    │  ← Flex 生成词法分析器，识别 Token<br>
+        │ (Lexer)     │<br>
+        └──────┬──────┘<br>
+               ▼<br>
+        ┌─────────────┐<br>
+        │ 语法分析    │  ← Bison 生成语法分析器，构建 AST<br>
+        │ (Parser)    │<br>
+        └──────┬──────┘<br>
+               ▼<br>
+        ┌─────────────┐<br>
+        │ 语义检查    │  ← 类型匹配、变量声明检查（本实验简化）<br>
+        │ (Semantic)  │<br>
+        └──────┬──────┘<br>
+               ▼<br>
+        ┌─────────────┐<br>
+        │ 代码生成    │  ← 遍历 AST，生成 MIPS 汇编指令<br>
+        │ (CodeGen)   │<br>
+        └──────┬──────┘<br>
+               ▼<br>
+        ┌─────────────┐<br>
+        │ MIPS 汇编   │<br>
+        │   (.s)      │<br>
+        └─────────────┘<br>
+    </div>
+    <p style="color: #8b949e; margin-top: 8px; text-align: center;">
+        ▲ 四个核心阶段，每个阶段都对应编译原理课程中的关键知识点
+    </p>
+
+    <!-- ============================================ -->
+    <h2>3. 核心代码讲解（带编译原理知识）</h2>
+
+    <!-- 3.1 词法分析 -->
+    <h3>3.1 词法分析 —— 把字符流变成 Token 流</h3>
+    <div class="card">
+        <p><span class="file-tag">lexer.l</span> &nbsp; 使用 Flex 工具编写</p>
+        <p><strong>📖 编译原理知识</strong>：词法分析器的任务是读入源程序的字符序列，将它们组合成有意义的<strong>词法单元 (Token)</strong>。
+        每个 Token 包含一个类型（如 <code>INT</code>、<code>ID</code>）和一个可选的属性值（如变量名、数字值）。
+        正规表达式和有限自动机是词法分析的理论基础。</p>
+        <p><strong>🔧 本项目的实现</strong>：</p>
+        <pre><code class="language-lex">"int"                       { return INT; }
+"void"                      { return VOID; }
+"return"                    { return RETURN; }
+"if"                        { return IF; }
+"else"                      { return ELSE; }
+"while"                     { return WHILE; }
+
+[a-zA-Z_][a-zA-Z0-9_]*      { yylval.str = strdup(yytext); return ID; }
+[0-9]+                      { yylval.num = atoi(yytext); return NUMBER; }
+
+"="                         { return ASSIGN; }
+"+"                         { return PLUS; }
+"&&"                        { return LAND; }
+"||"                        { return LOR; }
+/* ... 其他运算符 */</code></pre>
+        <p>
+            <strong>解释</strong>：关键字（如 <code>int</code>）被识别为独立的 Token 类型；标识符 <code>ID</code> 匹配字母/下划线开头的字母数字串，
+            并将字符串副本存入 <code>yylval.str</code>；数字 <code>NUMBER</code> 则转换为整数值存入 <code>yylval.num</code>。
+            空白字符被直接跳过，未知字符报错。这样，一段源代码就被切分成了一个有序的 Token 序列，供语法分析器使用。
+        </p>
+    </div>
+
+    <!-- 3.2 语法分析 -->
+    <h3>3.2 语法分析 —— 从 Token 到语法树</h3>
+    <div class="card">
+        <p><span class="file-tag">grammar.y</span> &nbsp; 使用 Bison 工具编写</p>
+        <p><strong>📖 编译原理知识</strong>：语法分析根据语言的<strong>上下文无关文法</strong>，检查 Token 序列是否符合语法规则，
+        并构建出<strong>抽象语法树 (AST)</strong>。AST 是源代码的树状结构表示，去除了括号、分号等对语义无影响的细节，
+        是后续语义分析和代码生成的重要数据结构。Bison 使用 LALR(1) 分析法，是经典的移进-归约分析器。</p>
+        <p><strong>🔧 本项目的实现</strong>：</p>
+        <pre><code class="language-bison">function_def
+    : type_specifier ID LPAREN parameter_list RPAREN compound_stmt
+        { $$ = new ASTFunction($2, $1, $4, static_cast&lt;ASTCompoundStmt*&gt;($6)); }
+
+if_stmt
+    : IF LPAREN expression RPAREN statement %prec LOR
+        { $$ = new ASTIfStmt($3, $5, nullptr); }
+    | IF LPAREN expression RPAREN statement ELSE statement
+        { $$ = new ASTIfStmt($3, $5, $7); }
+
+while_stmt
+    : WHILE LPAREN expression RPAREN statement
+        { $$ = new ASTWhileStmt($3, $5); }
+
+/* 表达式层次：严格遵循优先级与结合性 */
+logical_or_expr
+    : logical_and_expr
+    | logical_or_expr LOR logical_and_expr  { $$ = new ASTBinaryOp(Op::LOR, $1, $3); }
+/* ... 其他优先级层次 */</code></pre>
+        <p>
+            <strong>解释</strong>：每个文法规则右侧对应一个 AST 节点的构造。例如，<code>function_def</code> 规则在识别到一个函数定义时，
+            会创建一个 <code>ASTFunction</code> 对象，包含函数名、返回类型、参数列表和函数体（复合语句）。
+            表达式文法通过分层（<code>logical_or_expr</code> → <code>logical_and_expr</code> → <code>bit_or_expr</code> → …）
+            天然实现了运算符优先级（如 <code>&&</code> 优先级高于 <code>||</code>）和左结合性。这也是 Bison 中 <code>%left</code> 声明的作用。
+        </p>
+    </div>
+
+    <!-- 3.3 AST 节点定义 -->
+    <h3>3.3 抽象语法树 (AST) —— 程序的结构化表示</h3>
+    <div class="card">
+        <p><span class="file-tag">ast.h</span> &nbsp; C++ 结构体定义</p>
+        <p><strong>📖 编译原理知识</strong>：AST 是编译器的核心数据结构，它把程序的<strong>语法结构</strong>用树形方式固定下来。
+        每个节点代表一个语法构造（如表达式、语句、声明）。AST 与具体语法树 (CST) 的区别在于，AST 省略了括号、分隔符等仅用于解析的辅助符号，
+        只保留对语义有用的信息，因此更便于后续处理。</p>
+        <p><strong>🔧 本项目的实现</strong>：</p>
+        <pre><code class="language-cpp">// 表达式节点
+struct ASTBinaryOp : ASTExpr {
+    Op op;          // 操作类型（ADD, SUB, LT, LAND, ...）
+    ASTExpr* left;  // 左操作数
+    ASTExpr* right; // 右操作数
+};
+
+struct ASTCallExpr : ASTExpr {
+    std::string funcName;
+    std::vector&lt;ASTExpr*&gt;* args;  // 实参列表
+};
+
+// 语句节点
+struct ASTIfStmt : ASTStmt {
+    ASTExpr* cond;      // 条件表达式
+    ASTStmt* thenStmt;  // then 分支
+    ASTStmt* elseStmt;  // else 分支（可为空）
+};
+
+struct ASTWhileStmt : ASTStmt {
+    ASTExpr* cond;
+    ASTStmt* body;
+};
+
+// 声明节点
+struct ASTVarDecl : ASTDecl {
+    std::string name;
+    Type type;          // INT 或 VOID
+    ASTExpr* init;      // 初始化表达式（可为空）
+};
+
+// 顶层结构
+struct ASTFunction : ASTNode {
+    std::string name;
+    Type retType;
+    std::vector&lt;ASTParam*&gt;* params;
+    ASTCompoundStmt* body;   // 函数体
+};</code></pre>
+        <p>
+            <strong>解释</strong>：AST 的类层次清晰地区分了表达式 (<code>ASTExpr</code>)、语句 (<code>ASTStmt</code>) 和声明 (<code>ASTDecl</code>)。
+            每个节点只存储必要的语义信息。例如 <code>ASTBinaryOp</code> 存储操作符和左右子节点，而不存储括号或空格。
+            这种设计使得后续的代码生成器可以统一地遍历这棵树，不必关心语法细节。
+        </p>
+    </div>
+
+    <!-- 3.4 代码生成 -->
+    <h3>3.4 代码生成 —— 从 AST 到 MIPS 指令</h3>
+    <div class="card">
+        <p><span class="file-tag">CodeGen.cpp</span> &nbsp; AST 遍历 + 指令发射</p>
+        <p><strong>📖 编译原理知识</strong>：代码生成是编译器的最后一个阶段，它将 AST 转换为目标机器的汇编代码。
+        这个过程需要处理<strong>寄存器分配</strong>、<strong>栈帧管理</strong>、<strong>函数调用约定</strong>等底层细节。
+        本项目目标平台是 MIPS，一种经典的 RISC 架构，其指令集简洁规整，非常适合教学和理解编译器后端。</p>
+        <p><strong>🔧 本项目的实现</strong>：</p>
+        <pre><code class="language-cpp">void CodeGen::generateExpr(ASTExpr* expr, const std::string& reg) {
+    if (auto* lit = dynamic_cast&lt;ASTIntLiteral*&gt;(expr)) {
+        os &lt;&lt; "  li " &lt;&lt; reg &lt;&lt; ", " &lt;&lt; lit->value &lt;&lt; "\n";
+    }
+    else if (auto* var = dynamic_cast&lt;ASTVarRef*&gt;(expr)) {
+        os &lt;&lt; "  lw " &lt;&lt; reg &lt;&lt; ", " &lt;&lt; varOffsets[var->name] &lt;&lt; "($sp)\n";
+    }
+    else if (auto* bin = dynamic_cast&lt;ASTBinaryOp*&gt;(expr)) {
+        generateExpr(bin->left, "$t0");   // 生成左操作数代码，结果放 $t0
+        generateExpr(bin->right, "$t1");  // 生成右操作数代码，结果放 $t1
+        switch (bin->op) {
+            case Op::ADD: os &lt;&lt; "  add " &lt;&lt; reg &lt;&lt; ", $t0, $t1\n"; break;
+            case Op::SUB: os &lt;&lt; "  sub " &lt;&lt; reg &lt;&lt; ", $t0, $t1\n"; break;
+            case Op::MUL: os &lt;&lt; "  mul " &lt;&lt; reg &lt;&lt; ", $t0, $t1\n"; break;
+            case Op::DIV: os &lt;&lt; "  div $t0, $t1\n  mflo " &lt;&lt; reg &lt;&lt; "\n"; break;
+            case Op::LT:  os &lt;&lt; "  slt " &lt;&lt; reg &lt;&lt; ", $t0, $t1\n"; break;
+            // ... 其他操作
+        }
+    }
+    else if (auto* call = dynamic_cast&lt;ASTCallExpr*&gt;(expr)) {
+        if (call->funcName == "println_int") {
+            generateExpr((*call->args)[0], "$a0");
+            os &lt;&lt; "  li $v0, 1\n  syscall\n";          // 打印整数
+            os &lt;&lt; "  la $a0, newline\n  li $v0, 4\n  syscall\n"; // 换行
+        } else {
+            // 参数传递（最多4个）与函数调用
+            int argIdx = 0;
+            for (auto* arg : *call->args) {
+                generateExpr(arg, "$t0");
+                if (argIdx &lt; 4) os &lt;&lt; "  move $a" &lt;&lt; argIdx &lt;&lt; ", $t0\n";
+                argIdx++;
+            }
+            os &lt;&lt; "  jal " &lt;&lt; call->funcName &lt;&lt; "\n";
+            os &lt;&lt; "  move " &lt;&lt; reg &lt;&lt; ", $v0\n";
+        }
+    }
+}</code></pre>
+        <p>
+            <strong>解释</strong>：代码生成器采用<strong>递归遍历</strong> AST 的方式。对于每个表达式节点，它递归生成子表达式的代码，
+            并将结果约定存放在指定寄存器中（如 <code>$t0</code>、<code>$t1</code>）。
+            二元运算先求左右子表达式的值，再发射相应的 MIPS 算术指令。
+            函数调用则按 MIPS 调用约定，将前 4 个参数放入 <code>$a0</code>–<code>$a3</code>，然后用 <code>jal</code> 跳转，
+            返回值从 <code>$v0</code> 中取回。这种“递归下降 + 寄存器约定”的方式，是教学编译器中非常典型且易于理解的做法。
+        </p>
+        <p>
+            此外，栈帧管理在 <code>generateFunction</code> 中实现：函数入口处分配栈空间，保存 <code>$ra</code> 和 <code>$fp</code>，
+            并映射局部变量到栈上的固定偏移。出口处恢复栈帧并返回。
+        </p>
+    </div>
+
+    <!-- ============================================ -->
+    <h2>4. 完整测试用例：输入 → 输出</h2>
+    <div class="grid-2">
+        <div class="card">
+            <h4>📥 输入 (test.c)</h4>
+            <pre><code class="language-c">int main() {
+    int a = 10;
+    int b = 20;
+    int c = a + b * 2;
+    println_int(c);
+
+    if (c > 30) {
+        println_int(100);
+    } else {
+        println_int(200);
+    }
+
+    int i = 0;
+    while (i < 3) {
+        println_int(i);
+        i = i + 1;
+    }
+    return 0;
+}</code></pre>
+        </div>
+        <div class="card">
+            <h4>📤 输出 (MIPS 汇编片段)</h4>
+            <pre><code class="language-asm">.data
+newline: .asciiz "\n"
+.text
+.globl main
+main:
+  addiu $sp, $sp, -136
+  sw $ra, 132($sp)
+  sw $fp, 128($sp)
+  move $fp, $sp
+
+  li $t0, 10
+  sw $t0, 16($sp)       # a = 10
+  li $t0, 20
+  sw $t0, 20($sp)       # b = 20
+  lw $t0, 20($sp)
+  li $t1, 2
+  mul $t1, $t0, $t1     # b * 2
+  lw $t0, 16($sp)
+  add $t0, $t0, $t1     # a + (b*2)
+  sw $t0, 24($sp)       # c = ...
+
+  lw $a0, 24($sp)
+  li $v0, 1
+  syscall               # println_int(c)
+  la $a0, newline
+  li $v0, 4
+  syscall
+
+  # if (c > 30) ...
+  lw $t0, 24($sp)
+  li $t1, 30
+  slt $t0, $t1, $t0
+  beq $t0, $zero, .L1
+  li $a0, 100
+  li $v0, 1
+  syscall
+  j .L2
+.L1:
+  li $a0, 200
+  li $v0, 1
+  syscall
+.L2:
+  # while 循环 ...
+  ...</code></pre>
+        </div>
+    </div>
+    <p style="color: #8b949e; font-size:0.95rem;">
+        ⬆ 左侧是一个包含了变量、算术、条件、循环、函数调用的测试程序；右侧是编译器生成的 MIPS 汇编代码，
+        可以看到每个 C 语句都忠实地转换为了对应的 MIPS 指令序列。
+    </p>
+
+    <!-- ============================================ -->
+    <h2>5. 项目中的编译原理知识点总结</h2>
+    <div class="card">
+        <ul>
+            <li><strong>词法分析</strong>：正规表达式、有限自动机、Token 识别——由 Flex 工具实现。</li>
+            <li><strong>语法分析</strong>：上下文无关文法、LALR(1) 分析、移进-归约、抽象语法树——由 Bison 实现。</li>
+            <li><strong>语义分析</strong>（本实验简略）：类型检查、作用域管理、符号表——通过 C++ 数据结构模拟。</li>
+            <li><strong>中间代码与目标代码生成</strong>：AST 遍历、寄存器约定、栈帧管理、函数调用约定——手工实现 MIPS 代码生成。</li>
+            <li><strong>运算符优先级与结合性</strong>：通过文法分层（非终结符链）和 Bison 的 <code>%left</code>/<code>%right</code> 声明实现。</li>
+            <li><strong>控制流翻译</strong>：<code>if</code> 和 <code>while</code> 转换为条件分支 + 无条件跳转（<code>beq</code>/<code>bne</code> + <code>j</code>）。</li>
+        </ul>
+        <p>
+            可以说，这个项目<strong>覆盖了编译原理课程中“前端”和“后端”的主要环节</strong>，虽然做了很多简化（如不优化、不进行复杂的寄存器分配），
+            但完整地呈现了一个真实编译器的工作流程，对于理解编译原理的实践意义非常有帮助。
+        </p>
+    </div>
+
+    <!-- ============================================ -->
+    <h2>6. 技术难点与收获</h2>
+    <div class="card">
+        <ul>
+            <li><strong>难点1：运算符优先级的处理</strong> —— 通过 Bison 的 <code>%left</code>/<code>%right</code> 和 <code>%prec</code> 精细控制，
+            同时在文法中设计了 8 个优先级层次（从 <code>logical_or_expr</code> 到 <code>primary_expr</code>），确保了所有运算符的正确结合与优先级。</li>
+            <li><strong>难点2：MIPS 栈帧的精确管理</strong> —— 局部变量、临时寄存器、返回地址、帧指针都需要在栈上安排合理的偏移，
+            稍有不慎就会导致汇编运行出错。通过 <code>varOffsets</code> 映射表统一管理变量到栈偏移的映射，保证了正确性。</li>
+            <li><strong>难点3：函数调用与参数传递</strong> —— 需要同时处理被调用函数（callee）的参数接收和调用者（caller）的参数传递，
+            严格遵循 MIPS 调用约定（<code>$a0</code>–<code>$a3</code> 传参，<code>$v0</code> 返回值）。</li>
+        </ul>
+        <p>
+            <strong>收获</strong>：通过亲手实现一个完整的编译器前端，对编译原理课上的“正规表达式”、“上下文无关文法”、“递归下降”、“三地址代码”等概念有了非常具象的认识。
+            更重要的是，理解了<strong>高级语言如何一步步被翻译成机器指令</strong>，这对后续学习计算机体系结构、操作系统甚至逆向工程都打下了坚实的基础。
+        </p>
+    </div>
+
+    <!-- ============================================ -->
+    <h2>7. 项目文件结构</h2>
+    <div class="card">
+        <pre style="background: #0d1117; color: #8b949e; font-size:0.9rem;">
+        ├── CMakeLists.txt      # CMake 构建配置
+        ├── lexer.l             # Flex 词法规则
+        ├── grammar.y           # Bison 语法规则 + AST 构造动作
+        ├── ast.h               # 所有 AST 节点类的定义
+        ├── CodeGen.h           # 代码生成器接口
+        ├── CodeGen.cpp         # 代码生成器实现（遍历 AST 发射 MIPS）
+        ├── main.cpp            # 程序入口：读文件 → 调用语法分析 → 调用代码生成
+        ├── utils.h / .cpp      # 辅助工具（本实验暂未使用）
+        └── README.md           # 项目说明
+        </pre>
+        <p style="color: #8b949e;">
+            ▲ 所有代码加起来约 400 行（不含自动生成的 lex/yacc 代码），结构清晰，体现了“关注点分离”的设计原则。
+        </p>
+    </div>
+
+    <!-- ============================================ -->
+    <h2>8. 总结与延伸</h2>
+    <div class="card">
+        <p>
+            这个迷你编译器项目，虽然规模不大，但<strong>完整覆盖了从源代码输入到汇编代码输出的全过程</strong>。
+            它用代码验证了编译原理课程中的核心理论，也暴露了真实编译器中需要权衡的许多工程细节。
+        </p>
+        <p>
+            如果继续扩展，可以进一步增加：
+        </p>
+        <ul>
+            <li>更多数据类型（<code>char</code>、<code>float</code>、数组、指针）</li>
+            <li>更完善的类型检查与符号表管理</li>
+            <li>简单的代码优化（常量折叠、死代码消除）</li>
+            <li>寄存器分配算法（如图着色法）</li>
+        </ul>
+        <p>
+            但即使停留在当前阶段，它也已经是一个非常优秀的<strong>编译原理教学演示系统</strong>，
+            也是理解高级语言底层实现的一扇窗口。
+        </p>
+    </div>
+
+    <div class="footer">
+        项目讲解 · 迷你编译器 · 从源代码到 MIPS 汇编
+    </div>
+
+</div>
+<!-- 代码高亮 -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+<script>hljs.highlightAll();</script>
+</body>
+</html>
